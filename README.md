@@ -28,13 +28,13 @@ Because proprietary APIs are stateless black boxes that **do not expose the KV c
 ## 3. Prerequisites & Environment
 
 * **Python:** 3.10+ (tested on Python 3.14)
-* **Compute:** Apple Silicon (MPS) or NVIDIA GPU (CUDA). Runs in native bfloat16 unified memory (~6.5 GB footprint).
+* **Compute:** Apple Silicon (MPS) or NVIDIA GPU (CUDA). Runs in 4-bit NF4 quantized precision via `bitsandbytes` (~5.5 GB VRAM footprint on 16GB unified memory).
 * **Dependencies:**
   ```bash
   pip install -r requirements.txt
   ```
 * **Models:**
-  * **Causal Generator:** `meta-llama/Llama-3.2-3B-Instruct` (default; provides unquantized hardware-native bfloat16 tensor inspection at 35+ tokens/sec on Apple Silicon; maps to distributed 8B/70B clusters in production).
+  * **Causal Generator:** `unsloth/Meta-Llama-3.1-8B-Instruct-bnb-4bit` (default; provides authentic 8B causal attention and PyTorch `DynamicCache` tensor slicing within a 5.7 GB download footprint; maps to distributed 8B/70B clusters in production).
   * **Discriminative Sentinel:** `cross-encoder/nli-deberta-v3-base` or `cross-encoder/nli-deberta-v3-small` (auto-selected from local cache or set via `NLI_MODEL_ID` env var).
 
 ---

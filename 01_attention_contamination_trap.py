@@ -31,7 +31,8 @@ args = parse_args()
 script_start_time = time.perf_counter()
 
 DEVICE = "mps" if torch.backends.mps.is_available() else ("cuda" if torch.cuda.is_available() else "cpu")
-GEN_MODEL_ID = os.getenv("GEN_MODEL_ID", "meta-llama/Llama-3.2-3B-Instruct")
+DEFAULT_GEN = "unsloth/Meta-Llama-3.1-8B-Instruct-bnb-4bit"
+GEN_MODEL_ID = os.getenv("GEN_MODEL_ID", DEFAULT_GEN)
 
 def is_model_cached(repo_id: str) -> bool:
     """Checks whether model weights (.safetensors or .bin) exist in local HF cache."""
@@ -57,7 +58,7 @@ print("  SYSTEM TELEMETRY & ATTENTION CONTAMINATION INSPECTOR")
 print(f"  Timestamp:        {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 print(f"  Platform:         {platform.system()} ({platform.machine()}) | Device: {DEVICE.upper()}")
 print(f"  PyTorch:          {torch.__version__} | Transformers: {transformers.__version__}")
-print(f"  Generator Target: {GEN_MODEL_ID}")
+print(f"  Generator Target: meta-llama/Llama-3.1-8B-Instruct ({GEN_MODEL_ID})")
 print(f"  Validator:        {NLI_MODEL_ID}")
 print("=" * 80)
 
