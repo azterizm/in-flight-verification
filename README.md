@@ -25,7 +25,30 @@ Because proprietary APIs are stateless black boxes that **do not expose the KV c
 
 ---
 
-## 3. Empirical Verification: Two Phases
+## 3. Prerequisites & Environment
+
+* **Python:** 3.10+ (tested on Python 3.14)
+* **Compute:** Apple Silicon (MPS) or NVIDIA GPU (CUDA). Minimum 16GB unified memory recommended for 8B causal generation.
+* **Dependencies:**
+  ```bash
+  pip install -r requirements.txt
+  ```
+* **Models:**
+  * **Causal Generator:** `meta-llama/Llama-3.1-8B-Instruct` (or lighter fallback `meta-llama/Llama-3.2-3B-Instruct` via `GEN_MODEL_ID` env var)
+  * **Discriminative Sentinel:** `cross-encoder/nli-deberta-v3-base` or `cross-encoder/nli-deberta-v3-small` (auto-selected from local cache or set via `NLI_MODEL_ID` env var)
+
+---
+
+## 4. Empirical Verification
+
+All scripts support a `--dry-run` flag that validates dependencies, NLI cross-encoder inference, and tensor slicing logic without needing to load or download 8B weights.
+
+### Offline / Pre-Flight Validation
+```bash
+python3 01_attention_contamination_trap.py --dry-run
+python3 02_in_flight_kv_rollback.py --dry-run
+python3 proof_of_mechanism.py --dry-run
+```
 
 ### Phase 1: Proving Attention-State Poisoning (`01_attention_contamination_trap.py`)
 Run the default post-hoc harness:
@@ -34,9 +57,9 @@ python3 01_attention_contamination_trap.py
 ```
 * **What it proves:**
   * Grounded legal premise: Statutory Company Law (Corporate Entity Formation & Director Liability).
-  * Injected seed hallucination at indices 42..84 (inventing automatic joint liability for corporate directors).
+  * Injected seed hallucination (inventing automatic joint liability for corporate directors) committed to the KV cache.
   * Downstream token generation extracts multi-head attention weights across layers.
-  * Real-time telemetry demonstrates that downstream legal advice (creditor enforcement, personal asset seizure) allocates **25%–60% of its attention energy directly to the hallucinated span**, triggering repeated attention hits.
+  * Real-time telemetry demonstrates that downstream legal advice (creditor enforcement, personal asset seizure) allocates significant attention mass directly to the hallucinated span, triggering repeated attention hits.
   * Concludes with post-hoc evaluation demonstrating the $0.0057 / query Hallucination Tax.
 
 ### Phase 2: In-Flight Sentinel & KV Cache Truncation (`02_in_flight_kv_rollback.py`)
@@ -45,17 +68,17 @@ Run the target reference architecture harness:
 python3 02_in_flight_kv_rollback.py
 ```
 * **What it proves:**
-  * Sentence 1 generates authentic legal prose and locks KV coordinates at sequence index 42.
+  * Sentence 1 generates authentic legal prose and locks KV coordinates at sequence index $L_1$.
   * Sentence 2 contradiction is intercepted by the DeBERTa cross-encoder in under 25ms.
-  * Generation halts immediately. Active KV cache tensor is sliced back to sequence coordinate 42:
-    $$\text{Tensor Shape Transition: } [1, 8, 84, 128] \longrightarrow [1, 8, 42, 128]$$
+  * Generation halts immediately. Active KV cache tensor is sliced back to sequence coordinate $L_1$:
+    $$\text{Tensor Shape Transition: } [1, 8, L_2, 128] \longrightarrow [1, 8, L_1, 128]$$
   * Contaminated attention keys are physically purged from VRAM.
   * Generation resumes cleanly with corrective steering: **downstream attention to the hallucinated coordinate is 0.00% by construction.**
   * Emits an immutable SHA-256 sealed JSON audit record addressing **EU AI Act Articles 14 & 15** and **ISO 42001**.
 
 ---
 
-## 4. Production Architecture Mapping
+## 5. Production Architecture Mapping
 
 In these local harnesses on Apple Silicon (MPS / unified memory), sequence dimensions are sliced directly in PyTorch (`dim=2`). In an enterprise distributed deployment (§6 of the specification), this operation maps directly to:
 * **vLLM / SGLang RadixAttention:** Evicting the contaminated child branch in the prefix tree.
@@ -63,8 +86,9 @@ In these local harnesses on Apple Silicon (MPS / unified memory), sequence dimen
 
 ---
 
-## 5. Regulatory Grounding
+## 6. Regulatory Grounding
 
 * **EU AI Act Article 15:** Accuracy, robustness, and cybersecurity standards for high-risk legal AI.
 * **EU AI Act Article 14:** Human oversight and inference-tier governance.
 * **Legal Professional Responsibility:** SRA Principles 2 & 7, ABA Model Rule 1.1, and Bar disciplinary liability for false judicial submissions (*Mata v. Avianca*).
+
