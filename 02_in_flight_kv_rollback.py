@@ -34,7 +34,7 @@ args = parse_args()
 script_start_time = time.perf_counter()
 
 DEVICE = "mps" if torch.backends.mps.is_available() else ("cuda" if torch.cuda.is_available() else "cpu")
-GEN_MODEL_ID = os.getenv("GEN_MODEL_ID", "meta-llama/Llama-3.1-8B-Instruct")
+GEN_MODEL_ID = os.getenv("GEN_MODEL_ID", "meta-llama/Llama-3.2-3B-Instruct")
 
 def is_model_cached(repo_id: str) -> bool:
     """Checks whether model weights (.safetensors or .bin) exist in local HF cache."""
