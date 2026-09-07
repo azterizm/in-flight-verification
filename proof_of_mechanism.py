@@ -6,6 +6,8 @@ Executes genuine autoregressive token generation, real memory truncation,
 and cryptographic audit logging on Apple Silicon (MPS / unified memory).
 Matches Act 4 (Tensor Rollback) and Act 5 (Audit Trail / EU AI Act Art. 14 & 15).
 """
+import os
+import sys
 import time
 import json
 import hashlib
@@ -13,12 +15,11 @@ from datetime import datetime, timezone
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, AutoModelForSequenceClassification
 
-DEVICE = "mps" if torch.backends.mps.is_available() else "cpu"
+DEVICE = "mps" if torch.backends.mps.is_available() else ("cuda" if torch.cuda.is_available() else "cpu")
 print(f"[*] Initializing Tensor In-Flight Control on Device: {DEVICE}")
 
-# 1. Models: 8B Parameter Legal Generator & Discriminative Cross-Encoder
-GEN_MODEL_ID = "meta-llama/Llama-3.1-8B-Instruct"
-NLI_MODEL_ID = "cross-encoder/nli-deberta-v3-small"
+GEN_MODEL_ID = os.getenv("GEN_MODEL_ID", "meta-llama/Llama-3.1-8B-Instruct")
+NLI_MODEL_ID = os.getenv("NLI_MODEL_ID", "cross-encoder/nli-deberta-v3-small")
 
 print(f"[*] Loading 8B Causal LM Generator: {GEN_MODEL_ID}")
 gen_tok = AutoTokenizer.from_pretrained(GEN_MODEL_ID)
@@ -27,7 +28,7 @@ if gen_tok.pad_token is None:
 
 gen_model = AutoModelForCausalLM.from_pretrained(
     GEN_MODEL_ID,
-    torch_dtype=torch.bfloat16 if torch.cuda.is_available() or (hasattr(torch.backends, "mps") and torch.backends.mps.is_available()) else torch.float32,
+    torch_dtype=torch.bfloat16 if DEVICE in ["mps", "cuda"] else torch.float32,
     device_map="auto" if DEVICE == "mps" else None
 )
 if DEVICE != "mps":
@@ -71,10 +72,10 @@ def get_kv_shape(past_key_values):
 
 def truncate_kv_cache(past_key_values, target_len):
     """
-    Mechanically slices the KV cache along the sequence dimension (dim=2).
+    Mechanically slices the KV cache along sequence dimension (dim=2).
     Supports both HuggingFace DynamicCache (transformers >= 4.36) and legacy tuples.
-    In a distributed production engine (vLLM / SGLang), this operation maps directly
-    to RadixTree prefix eviction and PagedAttention physical block deallocation.
+    In distributed production engines (vLLM / SGLang), this maps directly to
+    RadixTree prefix eviction and PagedAttention physical block deallocation.
     """
     if hasattr(past_key_values, "layers"):
         for layer in past_key_values.layers:
@@ -96,17 +97,16 @@ def compute_sha256(data: str) -> str:
     """Computes standard hexadecimal SHA-256 digest."""
     return f"sha256:{hashlib.sha256(data.encode('utf-8')).hexdigest()}"
 
-# Legal Ground Truth: Italian Civil Code Art. 42 (Extracted ~50-word ColBERT sub-span)
+# Statutory Ground Truth: Corporate Entity Formation & Director Liability
 retrieved_subspan = (
-    "L'articolo 42 del Codice Civile prevede che le persone giuridiche "
-    "si costituiscono per atto pubblico. Nessuna disposizione prevede "
-    "responsabilità solidale degli amministratori per debiti sociali pregressi."
+    "Under statutory company law, corporate legal entities are incorporated by formal public registration. "
+    "No statutory provision imposes automatic joint and several personal liability on directors for pre-existing corporate obligations."
 )
 source_subspan_hash = compute_sha256(retrieved_subspan)
 
 prompt = (
-    f"Contesto normativo:\n{retrieved_subspan}\n\n"
-    f"Q: Quali sono i requisiti e il regime di responsabilità dell'Art. 42?\n"
+    f"Statutory Context:\n{retrieved_subspan}\n\n"
+    f"Q: What are the incorporation requirements and director liability rules?\n"
     f"A:"
 )
 
@@ -126,7 +126,6 @@ past_key_values = None
 current_input_ids = input_ids
 s1_token_ids = []
 
-# Autoregressively decode until sentence delimiter ('.')
 for _ in range(35):
     with torch.no_grad():
         outputs = gen_model(current_input_ids, past_key_values=past_key_values, use_cache=True)
@@ -136,7 +135,6 @@ for _ in range(35):
     s1_token_ids.append(next_token_id.item())
     current_input_ids = next_token_id
     token_str = gen_tok.decode(next_token_id[0], skip_special_tokens=True)
-    
     if "." in token_str:
         break
 
@@ -165,7 +163,7 @@ print(f"  └─ KV Cache State: LOCKED at Sequence Index = {locked_kv_len}")
 # --- PASS 2: Deterministic Adversarial Fault Injection ---
 print("\n[*] SENTENCE 2: ADVERSARIAL FAULT INJECTION (Simulating ungrounded hallucination condition)...")
 print("    [PROTOCOL]: Injecting known premise-violating clause into generation stream to test sentinel deterministically.")
-hallucinated_clause = " Inoltre, la responsabilità solidale degli amministratori copre tutti i debiti pregressi."
+hallucinated_clause = " Furthermore, directors shall be held jointly and personally liable for all pre-existing corporate debts."
 h_ids = gen_tok(hallucinated_clause, return_tensors="pt").input_ids.to(DEVICE)
 
 with torch.no_grad():
@@ -210,7 +208,7 @@ print(f"  └─ Attention memory purged. Attention matrices can no longer atten
 
 # --- PASS 4: Clean Resumption with Corrective Steering ---
 print("\n[*] RESUMING GENERATION FROM CLEAN STATE (Injecting corrective constraint)...")
-corrective_prefix = " Non è tuttavia prevista alcuna responsabilità solidale automatica."
+corrective_prefix = " No statutory provision imposes automatic personal liability; directors remain shielded by corporate limited liability absent proven fraud."
 corr_ids = gen_tok(corrective_prefix, return_tensors="pt").input_ids.to(DEVICE)
 
 with torch.no_grad():
@@ -245,15 +243,15 @@ print("ACT 5 ARTIFACT: IMMUTABLE AUDIT LOG (EU AI ACT ARTICLES 14 & 15 / ISO 420
 print("="*75)
 
 audit_payload = {
-    "query_id": "audit-20260907-art42-it-001",
+    "query_id": "audit-20260907-corp-liability-001",
     "timestamp_utc": datetime.now(timezone.utc).isoformat(),
-    "jurisdiction": "IT",
-    "statutory_corpus": "Codice Civile (Art. 42 - Persone Giuridiche)",
+    "jurisdiction": "EU / Common Law Corporate Statutory Harmonization",
+    "statutory_corpus": "Statutory Company Law (Director Liability & Limited Liability Formation)",
     "compliance_frameworks": [
         "EU AI Act Article 14 (Human Oversight)",
         "EU AI Act Article 15 (Accuracy & Traceability)",
         "ISO/IEC 42001:2023 A.6.2.6",
-        "Italian Codice Deontologico Forense (Arts. 9 & 12)"
+        "SRA Principles 2 & 7 / Model Rule 1.1"
     ],
     "source_subspan_hash": source_subspan_hash,
     "audit_events": audit_events,
@@ -266,7 +264,6 @@ audit_payload = {
     }
 }
 
-# Cryptographically seal decision trace with SHA-256
 canonical_repr = json.dumps(audit_payload, sort_keys=True)
 audit_payload["audit_hash"] = compute_sha256(canonical_repr)
 

@@ -9,7 +9,7 @@ This repository contains the empirical proof of mechanism and reproducible test 
 
 Commercial legal RAG platforms built on closed frontier APIs (OpenAI / Anthropic) default to a **"generate-then-validate"** pattern. 
 
-In autoregressive generation, causal attention is mathematically irreversible. When a model hallucinates a statutory holding mid-generation (occurring on 17–33% of specialized legal queries per Stanford RegLab benchmarks), those contaminated tokens are committed directly into GPU memory. Downstream attention matrices condition directly on that fabrication—deriving downstream legal remedies and non-existent precedent to rationalize the seed error (the "snowball effect", Zhang et al., 2023).
+In autoregressive generation, causal attention is mathematically irreversible. When a model produces a hallucinated statutory holding mid-generation (occurring on 17–33% of specialized legal queries per Stanford RegLab benchmarks), those contaminated tokens are committed directly into GPU memory. Downstream attention matrices condition directly on that fabrication—deriving downstream legal remedies and non-existent precedent to rationalize the seed error (the "snowball effect", Zhang et al., 2023).
 
 Because proprietary APIs are stateless black boxes that **do not expose the KV cache**, the platform cannot perform partial remediation. Detecting an error post-generation forces full response abandonment: imposing a **12–25 second latency freeze** and a **22% Hallucination Tax** that compounds linearly with query volume.
 
@@ -19,7 +19,7 @@ Because proprietary APIs are stateless black boxes that **do not expose the KV c
 
 | File | Role | Purpose |
 |:---|:---|:---|
-| [`01_attention_contamination_trap.py`](./01_attention_contamination_trap.py) | **The Trap (The Bad One)** | Demonstrates the default post-hoc approach. Tracks token-by-token attention weights and runs a live **Attention Hit Counter** proving that downstream tokens physically attend to and build upon the hallucinated tokens. |
+| [`01_attention_contamination_trap.py`](./01_attention_contamination_trap.py) | **The Trap (The Bad One)** | Demonstrates the default post-hoc approach. Tracks token-by-token attention weights in English corporate statutory law and runs a live **Attention Hit Counter** proving that downstream tokens physically attend to and build upon the hallucinated tokens. |
 | [`02_in_flight_kv_rollback.py`](./02_in_flight_kv_rollback.py) | **The Control (The Good One)** | Demonstrates in-flight inference control. Intercepts contradiction via a discriminative cross-encoder (<25ms), performs selective KV-cache truncation, resumes from clean state, and outputs a cryptographically sealed SHA-256 audit log. |
 | [`proof_of_mechanism.py`](./proof_of_mechanism.py) | **Consolidated Harness** | End-to-end operational script matching Act 4 of the case study video production plan. |
 
@@ -33,10 +33,10 @@ Run the default post-hoc harness:
 python3 01_attention_contamination_trap.py
 ```
 * **What it proves:**
-  * Grounded legal premise: Art. 42 Italian Civil Code (Persone Giuridiche).
-  * Injected seed hallucination at indices 42..84 (inventing automatic joint liability of directors).
-  * Downstream token generation extracts attention weights across layers.
-  * Real-time telemetry demonstrates that downstream legal advice (creditor enforcement, personal asset seizure) allocates **25%–60% of its attention energy directly to the hallucinated span**, triggering dozens of attention hits.
+  * Grounded legal premise: Statutory Company Law (Corporate Entity Formation & Director Liability).
+  * Injected seed hallucination at indices 42..84 (inventing automatic joint liability for corporate directors).
+  * Downstream token generation extracts multi-head attention weights across layers.
+  * Real-time telemetry demonstrates that downstream legal advice (creditor enforcement, personal asset seizure) allocates **25%–60% of its attention energy directly to the hallucinated span**, triggering repeated attention hits.
   * Concludes with post-hoc evaluation demonstrating the $0.0057 / query Hallucination Tax.
 
 ### Phase 2: In-Flight Sentinel & KV Cache Truncation (`02_in_flight_kv_rollback.py`)
@@ -67,5 +67,4 @@ In these local harnesses on Apple Silicon (MPS / unified memory), sequence dimen
 
 * **EU AI Act Article 15:** Accuracy, robustness, and cybersecurity standards for high-risk legal AI.
 * **EU AI Act Article 14:** Human oversight and inference-tier governance.
-* **Italian *Codice Deontologico Forense* (Articles 9 & 12):** Personal diligence, truthfulness, and disciplinary liability for false submissions.
-* **SRA Principles 2 & 7:** Public trust and compliance obligations for practicing solicitors.
+* **Legal Professional Responsibility:** SRA Principles 2 & 7, ABA Model Rule 1.1, and Bar disciplinary liability for false judicial submissions (*Mata v. Avianca*).

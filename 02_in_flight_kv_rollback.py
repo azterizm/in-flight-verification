@@ -97,17 +97,16 @@ def compute_sha256(data: str) -> str:
     """Computes standard hexadecimal SHA-256 digest."""
     return f"sha256:{hashlib.sha256(data.encode('utf-8')).hexdigest()}"
 
-# Statutory Ground Truth: Italian Civil Code Art. 42 (Extracted ~50-word ColBERT sub-span)
+# Statutory Ground Truth: Corporate Entity Formation & Director Liability
 retrieved_subspan = (
-    "L'articolo 42 del Codice Civile prevede che le persone giuridiche "
-    "si costituiscono per atto pubblico. Nessuna disposizione prevede "
-    "responsabilità solidale degli amministratori per debiti sociali pregressi."
+    "Under statutory company law, corporate legal entities are incorporated by formal public registration. "
+    "No statutory provision imposes automatic joint and several personal liability on directors for pre-existing corporate obligations."
 )
 source_subspan_hash = compute_sha256(retrieved_subspan)
 
 prompt = (
-    f"Contesto normativo:\n{retrieved_subspan}\n\n"
-    f"Q: Quali sono i requisiti e il regime di responsabilità dell'Art. 42?\n"
+    f"Statutory Context:\n{retrieved_subspan}\n\n"
+    f"Q: What are the incorporation requirements and director liability rules?\n"
     f"A:"
 )
 
@@ -164,7 +163,7 @@ print(f"  └─ KV Cache State: LOCKED at Sequence Index = {locked_kv_len}")
 # --- PASS 2: Deterministic Adversarial Fault Injection ---
 print("\n[*] SENTENCE 2: ADVERSARIAL FAULT INJECTION (Simulating ungrounded hallucination)...")
 print("    [PROTOCOL]: Injecting known premise-violating clause to test sentinel deterministically.")
-hallucinated_clause = " Inoltre, la responsabilità solidale degli amministratori copre tutti i debiti pregressi."
+hallucinated_clause = " Furthermore, directors shall be held jointly and personally liable for all pre-existing corporate debts."
 h_ids = gen_tok(hallucinated_clause, return_tensors="pt").input_ids.to(DEVICE)
 
 with torch.no_grad():
@@ -213,7 +212,7 @@ print(f"  └─ Downstream attention to contaminated tokens is 0.00% BY CONSTRU
 
 # --- PASS 4: Clean Resumption with Corrective Steering ---
 print("\n[*] RESUMING GENERATION FROM CLEAN STATE (Injecting corrective constraint)...")
-corrective_prefix = " Non è tuttavia prevista alcuna responsabilità solidale automatica."
+corrective_prefix = " No statutory provision imposes automatic personal liability; directors remain shielded by corporate limited liability absent proven fraud."
 corr_ids = gen_tok(corrective_prefix, return_tensors="pt").input_ids.to(DEVICE)
 
 with torch.no_grad():
@@ -248,15 +247,15 @@ print("ACT 5 ARTIFACT: IMMUTABLE AUDIT LOG (EU AI ACT ARTICLES 14 & 15 / ISO 420
 print("="*80)
 
 audit_payload = {
-    "query_id": "audit-20260907-art42-it-001",
+    "query_id": "audit-20260907-corp-liability-001",
     "timestamp_utc": datetime.now(timezone.utc).isoformat(),
-    "jurisdiction": "IT",
-    "statutory_corpus": "Codice Civile (Art. 42 - Persone Giuridiche)",
+    "jurisdiction": "EU / Common Law Corporate Statutory Harmonization",
+    "statutory_corpus": "Statutory Company Law (Director Liability & Limited Liability Formation)",
     "compliance_frameworks": [
         "EU AI Act Article 14 (Human Oversight)",
         "EU AI Act Article 15 (Accuracy & Traceability)",
         "ISO/IEC 42001:2023 A.6.2.6",
-        "Italian Codice Deontologico Forense (Arts. 9 & 12)"
+        "SRA Principles 2 & 7 / Model Rule 1.1"
     ],
     "source_subspan_hash": source_subspan_hash,
     "audit_events": audit_events,

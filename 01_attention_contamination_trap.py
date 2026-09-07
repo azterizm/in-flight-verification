@@ -37,7 +37,7 @@ nli_tok = AutoTokenizer.from_pretrained(NLI_MODEL_ID)
 nli_model = AutoModelForSequenceClassification.from_pretrained(NLI_MODEL_ID).to(DEVICE)
 
 def audit_sentence_nli(premise: str, hypothesis: str):
-    """Evaluates NLI relation (<25ms)."""
+    """Evaluates NLI relation in a single bidirectional forward pass (<25ms)."""
     t0 = time.perf_counter()
     inputs = nli_tok(premise, hypothesis, return_tensors="pt", truncation=True).to(DEVICE)
     with torch.no_grad():
@@ -48,16 +48,15 @@ def audit_sentence_nli(premise: str, hypothesis: str):
     idx = torch.argmax(probs).item()
     return labels[idx], probs[idx].item(), latency
 
-# Statutory Ground Truth: Italian Civil Code Art. 42 (Persone Giuridiche)
+# Statutory Ground Truth: Corporate Entity Formation & Director Liability
 retrieved_subspan = (
-    "L'articolo 42 del Codice Civile prevede che le persone giuridiche "
-    "si costituiscono per atto pubblico. Nessuna disposizione prevede "
-    "responsabilità solidale degli amministratori per debiti sociali pregressi."
+    "Under statutory company law, corporate legal entities are incorporated by formal public registration. "
+    "No statutory provision imposes automatic joint and several personal liability on directors for pre-existing corporate obligations."
 )
 
 prompt = (
-    f"Contesto normativo:\n{retrieved_subspan}\n\n"
-    f"Q: Quali sono i requisiti e il regime di responsabilità dell'Art. 42?\n"
+    f"Statutory Context:\n{retrieved_subspan}\n\n"
+    f"Q: What are the incorporation requirements and director liability rules?\n"
     f"A:"
 )
 
@@ -101,7 +100,7 @@ print(f"  └─ Status: Grounded ({verdict_1}, p={conf_1:.2f}) | KV Cache Seque
 
 # --- STEP 2: Sentence 2 (Adversarial Error / Contamination Seed) ---
 print("\n[STEP 2]: Simulating Mid-Generation Hallucination (Seed Error)...")
-hallucinated_clause = " Inoltre, la responsabilità solidale degli amministratori copre tutti i debiti pregressi."
+hallucinated_clause = " Furthermore, directors shall be held jointly and personally liable for all pre-existing corporate debts."
 h_ids = gen_tok(hallucinated_clause, return_tensors="pt").input_ids.to(DEVICE)
 
 with torch.no_grad():
@@ -122,13 +121,13 @@ print(f"  └─ Notice: Under default closed APIs (OpenAI/Anthropic), NO verifi
 
 # --- STEP 3: Downstream Cascade & Real-Time Attention Hit Tracking ---
 print("\n[STEP 3]: Generating Downstream Output WITHOUT KV-Cache Rollback...")
-print("  [LIVE ATTENTION TELEMETRY]: Tracking attention mass allocated to contaminated tokens [bad_span]...")
+print("  [LIVE ATTENTION TELEMETRY]: Tracking attention mass allocated to contaminated tokens...")
 print("-" * 80)
 print(f"{'STEP':<6} | {'TOKEN':<16} | {'ATTN ON BAD SPAN':<18} | {'HEADS FIRING':<14} | {'HIT COUNTER'}")
 print("-" * 80)
 
 # Downstream continuation conditioned on the poisoned state
-cascade_prompt = " Pertanto, i creditori sociali possono escutere direttamente il patrimonio personale dei soci."
+cascade_prompt = " Therefore, creditors may immediately initiate personal asset seizure against individual directors."
 cascade_ids = gen_tok(cascade_prompt, return_tensors="pt").input_ids.to(DEVICE)
 
 current_kv = polluted_kv
@@ -187,6 +186,6 @@ final_verdict, final_conf, final_lat = audit_sentence_nli(retrieved_subspan, ful
 print(f"Full Generated Response (800 tokens simulated):\n\"{full_output}\"\n")
 print(f"[POST-HOC GATE VERDICT]: {final_verdict} (Confidence: {final_conf:.2f}, Latency: {final_lat:.1f}ms)")
 print("\n[THE CLOSED-API DILEMMA]:")
-print("  Option A: Ship Output -> Malpractice liability under EU AI Act Art. 15 and Italian Bar Art. 9/12.")
+print("  Option A: Ship Output -> Malpractice liability under EU AI Act Art. 15 and Bar disciplinary rules.")
 print("  Option B: Discard & Regenerate -> 15s latency freeze, burning 800 tokens billed twice.")
 print("  Result: 22% Hallucination Tax permanently incurred because closed APIs prohibit KV rollback.\n")
