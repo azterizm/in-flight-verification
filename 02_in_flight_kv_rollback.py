@@ -15,8 +15,12 @@ import platform
 import argparse
 import datetime
 from datetime import datetime as dt_class, timezone
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning)
+warnings.filterwarnings("ignore", category=FutureWarning)
 import torch
 import transformers
+transformers.logging.set_verbosity_error()
 from transformers import AutoModelForCausalLM, AutoTokenizer, AutoModelForSequenceClassification
 
 def parse_args():
@@ -67,7 +71,7 @@ print("=" * 80)
 
 print(f"\n[*] Loading In-Flight Sentinel (Discriminative NLI Cross-Encoder): {NLI_MODEL_ID}")
 try:
-    nli_tok = AutoTokenizer.from_pretrained(NLI_MODEL_ID)
+    nli_tok = AutoTokenizer.from_pretrained(NLI_MODEL_ID, clean_up_tokenization_spaces=False)
     nli_model = AutoModelForSequenceClassification.from_pretrained(NLI_MODEL_ID).to(DEVICE)
     nli_model.eval()
     print(f"    └─ Sentinel ready. Registered classes: {getattr(nli_model.config, 'id2label', 'Default')}")
@@ -203,13 +207,13 @@ if args.dry_run:
 
 print(f"\n[*] Loading Generator Model: {GEN_MODEL_ID}")
 try:
-    gen_tok = AutoTokenizer.from_pretrained(GEN_MODEL_ID)
+    gen_tok = AutoTokenizer.from_pretrained(GEN_MODEL_ID, clean_up_tokenization_spaces=False)
     if gen_tok.pad_token is None:
         gen_tok.pad_token = gen_tok.eos_token
 
     gen_model = AutoModelForCausalLM.from_pretrained(
         GEN_MODEL_ID,
-        torch_dtype=torch.bfloat16 if DEVICE in ["mps", "cuda"] else torch.float32,
+        dtype=torch.bfloat16 if DEVICE in ["mps", "cuda"] else torch.float32,
         device_map="auto" if DEVICE == "mps" else None
     )
     if DEVICE != "mps":
