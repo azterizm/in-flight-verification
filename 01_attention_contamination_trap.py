@@ -200,10 +200,11 @@ else:
     s1_end_coord = past_key_values[0][0].shape[2]
 
 print(f"[SENTENCE 1]: \"{s1_text}\"")
-print(f"  └─ Status: Grounded ({verdict_1}, p={conf_1:.2f}) | KV Cache Sequence Pos = {s1_end_coord}")
+print(f"  ├─ Sentinel Verdict: {verdict_1} (p={conf_1:.2f})")
+print(f"  └─ KV Cache State:   LOCKED at Sequence Index = {s1_end_coord}")
 
 # --- STEP 2: Sentence 2 (Adversarial Error / Contamination Seed) ---
-print("\n[STEP 2]: Simulating Mid-Generation Hallucination (Seed Error)...")
+print("\n[STEP 2]: Simulating Mid-Generation Contamination...")
 hallucinated_clause = " Furthermore, directors shall be held jointly and personally liable for all pre-existing corporate debts."
 h_ids = gen_tok(hallucinated_clause, return_tensors="pt").input_ids.to(DEVICE)
 
@@ -219,15 +220,14 @@ else:
     bad_end_coord = polluted_kv[0][0].shape[2]
 
 bad_span = (s1_end_coord, bad_end_coord)
-print(f"[SENTENCE 2 EMITTED]: \"{hallucinated_clause.strip()}\"")
-print(f"  ├─ Contaminated Token Coordinates in KV Cache: indices {bad_span[0]} to {bad_span[1]}")
-print(f"  └─ Notice: Under default closed APIs (OpenAI/Anthropic), NO verification has fired yet!")
+print(f"[SENTENCE 2]: \"{hallucinated_clause.strip()}\"")
+print(f"  ├─ Contaminated Token Span: [{bad_span[0]}:{bad_span[1]}]")
+print(f"  └─ Status: UNVERIFIED (In-flight evaluation bypassed in post-hoc architecture)")
 
 # --- STEP 3: Downstream Cascade & Real-Time Attention Hit Tracking ---
-print("\n[STEP 3]: Generating Downstream Output WITHOUT KV-Cache Rollback...")
-print("  [LIVE ATTENTION TELEMETRY]: Tracking attention mass allocated to contaminated tokens...")
+print("\n[STEP 3]: Generating Downstream Output conditioned on Contaminated State...")
 print("-" * 80)
-print(f"{'STEP':<6} | {'TOKEN':<16} | {'ATTN ON BAD SPAN':<18} | {'HEADS FIRING':<14} | {'HIT COUNTER'}")
+print(f"{'STEP':<6} | {'TOKEN':<16} | {'ATTN ON BAD SPAN':<18} | {'HEADS FIRING':<14} | {'STATUS'}")
 print("-" * 80)
 
 # Downstream continuation conditioned on the poisoned state
@@ -262,9 +262,9 @@ for idx in range(cascade_ids.shape[1]):
     token_str = gen_tok.decode(step_input[0], skip_special_tokens=True)
     if mean_span_mass > 5.0:
         cumulative_attention_hits += 1
-        indicator = "🔥 ATTENTION HIT"
+        indicator = "ATTN_HIT"
     else:
-        indicator = "  pass"
+        indicator = "CLEAN"
 
     attention_masses.append(mean_span_mass)
     total_downstream_tokens += 1
@@ -273,34 +273,30 @@ for idx in range(cascade_ids.shape[1]):
     if len(clean_repr) > 16:
         clean_repr = clean_repr[:13] + "..."
 
-    print(f"#{idx+1:<5} | {clean_repr:<16} | {mean_span_mass:>6.2f}% attention  | {heads_firing:>2}/{total_heads} heads     | Hit #{cumulative_attention_hits:<3} {indicator}")
+    print(f"#{idx+1:<5} | {clean_repr:<16} | {mean_span_mass:>6.2f}% attention  | {heads_firing:>2}/{total_heads} heads     | {indicator}")
 
 print("-" * 80)
 avg_attention = sum(attention_masses) / len(attention_masses) if attention_masses else 0.0
 
-print(f"\n[!] ATTENTION TELEMETRY EMPIRICAL FINDINGS:")
-print(f"  ├─ Total Downstream Tokens Analyzed: {total_downstream_tokens}")
-print(f"  ├─ Cumulative Attention Hits on Poisoned State: {cumulative_attention_hits} times")
-print(f"  ├─ Average Attention Mass Focused on Hallucinated Span: {avg_attention:.2f}%")
-print(f"  └─ Empirical Conclusion: The downstream malpractice advice was physically conditioning")
-print(f"     on the contaminated attention keys in GPU memory.")
+print(f"\nTELEMETRY SUMMARY (SPAN [{bad_span[0]}:{bad_span[1]}]):")
+print(f"  ├─ Downstream Tokens Analyzed:  {total_downstream_tokens}")
+print(f"  ├─ Contaminated Span Hits:      {cumulative_attention_hits}/{total_downstream_tokens}")
+print(f"  ├─ Mean Span Attention Mass:    {avg_attention:.2f}%")
+print(f"  └─ Query Heads Attending:       {total_heads}/{total_heads}")
 
-# --- STEP 4: The Post-Hoc Gate Fires Too Late ---
+# --- STEP 4: Post-Hoc Evaluation ---
 print("\n" + "="*80)
-print("POST-HOC VERIFICATION EVALUATION (THE TRAP)")
+print("POST-HOC VERIFICATION (DEFAULT ARCHITECTURE)")
 print("="*80)
 full_output = f"{s1_text} {hallucinated_clause.strip()} {cascade_prompt.strip()}"
 final_verdict, final_conf, final_lat = audit_sentence_nli(retrieved_subspan, full_output)
 
-print(f"Full Generated Response (800 tokens simulated):\n\"{full_output}\"\n")
-print(f"[POST-HOC GATE VERDICT]: {final_verdict} (Confidence: {final_conf:.2f}, Latency: {final_lat:.1f}ms)")
-print("\n[THE CLOSED-API DILEMMA]:")
-print("  Option A: Ship Output -> Malpractice liability under EU AI Act Art. 15 and Bar disciplinary rules.")
-print("  Option B: Discard & Regenerate -> 15s latency freeze, burning 800 tokens billed twice.")
-print("  Result: 22% Hallucination Tax permanently incurred because closed APIs prohibit KV rollback.\n")
+print(f"Response:     \"{full_output}\"")
+print(f"Gate Verdict: {final_verdict} (p={final_conf:.2f}, Latency: {final_lat:.1f}ms)")
+print("Action:       DISCARD ENTIRE SEQUENCE (No KV-rollback mechanism on closed API)")
 
 if DEVICE == "mps":
     torch.mps.empty_cache()
 
 total_runtime = time.perf_counter() - script_start_time
-print(f"[*] Run completed in {total_runtime:.2f}s.\n")
+print(f"\n[*] Execution time: {total_runtime:.2f}s.\n")

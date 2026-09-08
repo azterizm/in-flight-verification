@@ -283,13 +283,12 @@ audit_events.append({
     "source_subspan_hash": source_subspan_hash
 })
 
-print(f"[SENTENCE 1 STREAMED]: \"{s1_text}\"")
-print(f"  ├─ Discriminative NLI Verdict: {verdict_1} (p={conf_1:.2f}, Latency: {lat_1:.1f}ms)")
-print(f"  └─ KV Cache State: LOCKED at Sequence Index = {locked_kv_len}")
+print(f"[SENTENCE 1]: \"{s1_text}\"")
+print(f"  ├─ Sentinel Verdict: {verdict_1} (p={conf_1:.2f}, Latency: {lat_1:.1f}ms)")
+print(f"  └─ KV Cache State:   LOCKED at Sequence Index = {locked_kv_len}")
 
 # --- PASS 2: Deterministic Adversarial Fault Injection ---
-print("\n[*] SENTENCE 2: ADVERSARIAL FAULT INJECTION (Simulating ungrounded hallucination condition)...")
-print("    [PROTOCOL]: Injecting known premise-violating clause into generation stream to test sentinel deterministically.")
+print("\n[*] SENTENCE 2: ADVERSARIAL FAULT INJECTION")
 hallucinated_clause = " Furthermore, directors shall be held jointly and personally liable for all pre-existing corporate debts."
 h_ids = gen_tok(hallucinated_clause, return_tensors="pt").input_ids.to(DEVICE)
 
@@ -315,13 +314,13 @@ audit_events.append({
     "source_subspan_hash": source_subspan_hash
 })
 
-print(f"[SENTENCE 2 STREAMED]: \"{hallucinated_clause.strip()}\"")
-print(f"  ├─ Discriminative NLI Verdict: {verdict_2} (p={conf_2:.2f}, Latency: {lat_2:.1f}ms)")
+print(f"[SENTENCE 2]: \"{hallucinated_clause.strip()}\"")
+print(f"  ├─ Sentinel Verdict: {verdict_2} (p={conf_2:.2f}, Latency: {lat_2:.1f}ms)")
 print(f"  └─ Generation State: CONTAMINATED (Active KV Seq Len = {polluted_kv_len})")
 
 # --- PASS 3: The Mechanical KV Cache Truncation ---
-print("\n[*] CONTRADICTION INTERCEPTED BY SENTINEL -> HALTING GENERATION")
-print(f"[*] Truncating KV cache back to locked sequence index: {locked_kv_len}...")
+print("\n[*] CONTRADICTION INTERCEPTED -> HALTING GENERATION")
+print(f"[*] Truncating KV cache to locked sequence index: {locked_kv_len}...")
 
 if DEVICE == "mps":
     torch.mps.synchronize()
@@ -335,11 +334,10 @@ clean_shape = get_kv_shape(clean_kv)
 tokens_discarded = polluted_kv_len - locked_kv_len
 
 print(f"[+] ROLLBACK COMPLETE:")
-print(f"  ├─ Local Tensor Shape: {polluted_shape} -> {clean_shape}")
-print(f"  ├─ Production Architecture Mapping: RadixTree prefix eviction & PagedAttention block deallocation")
-print(f"  ├─ Slicing Operation Latency: {slice_latency_ms:.2f} ms")
-print(f"  ├─ Discarded {tokens_discarded} contaminated tokens (95% compute saved vs full restart).")
-print(f"  └─ Attention memory purged. Attention matrices can no longer attend to fabricated holding.")
+print(f"  ├─ Tensor Shape Transition: {polluted_shape} -> {clean_shape}")
+print(f"  ├─ Slicing Latency:          {slice_latency_ms:.2f} ms")
+print(f"  ├─ Discarded Tokens:         {tokens_discarded}")
+print(f"  └─ Locked Sequence Pos:      {locked_kv_len}")
 
 # --- PASS 4: Clean Resumption with Corrective Steering ---
 print("\n[*] RESUMING GENERATION FROM CLEAN STATE (Injecting corrective constraint)...")
@@ -368,14 +366,14 @@ audit_events.append({
     "source_subspan_hash": source_subspan_hash
 })
 
-print(f"[RESUMED SENTENCE 2]: \"{resumed_text}\"")
-print(f"  ├─ Discriminative NLI Verdict: {verdict_3} (p={conf_3:.2f}, Latency: {lat_3:.1f}ms)")
-print(f"  └─ Final Committed State: VERIFIED (Seq Len = {final_kv_len})")
+print(f"[RESUMED]: \"{resumed_text}\"")
+print(f"  ├─ Sentinel Verdict: {verdict_3} (p={conf_3:.2f}, Latency: {lat_3:.1f}ms)")
+print(f"  └─ KV Cache State:   LOCKED at Sequence Index = {final_kv_len}")
 
 # --- ACT 5: Structured Tamper-Evident Audit Record Generation ---
-print("\n" + "="*75)
-print("ACT 5 ARTIFACT: IMMUTABLE AUDIT LOG (EU AI ACT ARTICLES 14 & 15 / ISO 42001)")
-print("="*75)
+print("\n" + "="*80)
+print("CRYPTOGRAPHIC AUDIT RECORD (EU AI ACT ARTICLES 14 & 15 / ISO 42001)")
+print("="*80)
 
 audit_payload = {
     "query_id": "audit-20260907-corp-liability-001",
@@ -404,13 +402,12 @@ audit_payload["audit_hash"] = compute_sha256(canonical_repr)
 
 formatted_json = json.dumps(audit_payload, indent=2, ensure_ascii=False)
 print(formatted_json)
-print("\n" + "="*75)
-print(f"[+] AUDIT RECORD SEALED WITH CRYPTOGRAPHIC DIGEST: {audit_payload['audit_hash']}")
-print("[+] Compliant Decision Trace ready for export and regulatory filing.")
-print("="*75 + "\n")
+print("\n" + "="*80)
+print(f"[+] SEALED DIGEST: {audit_payload['audit_hash']}")
+print("="*80 + "\n")
 
 if DEVICE == "mps":
     torch.mps.empty_cache()
 
 total_runtime = time.perf_counter() - script_start_time
-print(f"[*] Run completed in {total_runtime:.2f}s.\n")
+print(f"[*] Execution time: {total_runtime:.2f}s.\n")
