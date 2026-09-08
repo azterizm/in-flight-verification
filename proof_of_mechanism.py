@@ -339,7 +339,7 @@ print(f"  └─ Attention memory purged. Attention matrices can no longer atten
 
 # --- PASS 4: Clean Resumption with Corrective Steering ---
 print("\n[*] RESUMING GENERATION FROM CLEAN STATE (Injecting corrective constraint)...")
-corrective_prefix = " No statutory provision imposes automatic personal liability; directors remain shielded by corporate limited liability absent proven fraud."
+corrective_prefix = " No statutory provision imposes automatic joint and several personal liability on directors for pre-existing corporate obligations."
 corr_ids = gen_tok(corrective_prefix, return_tensors="pt").input_ids.to(DEVICE)
 
 with torch.no_grad():
