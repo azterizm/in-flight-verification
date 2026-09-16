@@ -21,7 +21,6 @@ Because proprietary APIs are stateless black boxes that **do not expose the KV c
 |:---|:---|:---|
 | [`01_attention_contamination_trap.py`](./01_attention_contamination_trap.py) | **The Trap (The Bad One)** | Demonstrates the default post-hoc approach. Tracks token-by-token attention weights in English corporate statutory law and runs a live **Attention Hit Counter** proving that downstream tokens physically attend to and build upon the hallucinated tokens. |
 | [`02_in_flight_kv_rollback.py`](./02_in_flight_kv_rollback.py) | **The Control (The Good One)** | Demonstrates in-flight inference control. Intercepts contradiction via a discriminative cross-encoder (<25ms), performs selective KV-cache truncation, resumes from clean state, and outputs a cryptographically sealed SHA-256 audit log. |
-| [`proof_of_mechanism.py`](./proof_of_mechanism.py) | **Consolidated Harness** | End-to-end operational script matching Act 4 of the case study video production plan. |
 
 ---
 
@@ -47,7 +46,6 @@ All scripts support a `--dry-run` flag that validates dependencies, NLI cross-en
 ```bash
 python3 01_attention_contamination_trap.py --dry-run
 python3 02_in_flight_kv_rollback.py --dry-run
-python3 proof_of_mechanism.py --dry-run
 ```
 
 ### Phase 1: Proving Attention-State Poisoning (`01_attention_contamination_trap.py`)
