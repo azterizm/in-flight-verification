@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """
 02_in_flight_kv_rollback.py
-Demonstrates the Target Architecture: In-Flight Verification with Selective KV-Cache Slicing.
-Intercepts contradiction mid-stream, truncates GPU attention memory back to the last verified coordinate,
-proves 0% downstream attention contamination by construction, and emits a cryptographic SHA-256 audit log.
-Matches Act 3, Act 4, and Act 5 of the Case Study Specification.
+Check during generation. Each sentence is checked by an NLI cross-encoder against the source
+passage as soon as it ends. When the injected sentence is flagged, the KV cache is truncated back
+to the end of the last passing sentence and generation resumes from there, so no later token can
+attend to the rejected sentence. Writes a JSON audit record with a SHA-256 digest over it.
+
+The ungrounded sentence is injected, not generated, and the source passage is an illustrative
+paraphrase, not the text of any statute.
 """
 import os
 import sys
@@ -80,7 +83,7 @@ except Exception as e:
     sys.exit(1)
 
 def audit_sentence_nli(premise: str, hypothesis: str):
-    """Evaluates NLI relation in a single bidirectional forward pass (<25ms)."""
+    """Evaluates the NLI relation in a single forward pass and returns (label, prob, latency_ms)."""
     if DEVICE == "mps":
         torch.mps.synchronize()
     t0 = time.perf_counter()
@@ -149,7 +152,7 @@ def compute_sha256(data: str) -> str:
     """Computes standard hexadecimal SHA-256 digest."""
     return f"sha256:{hashlib.sha256(data.encode('utf-8')).hexdigest()}"
 
-# Statutory Ground Truth: Corporate Entity Formation & Director Liability
+# Source passage: an illustrative paraphrase written for this demo, not the text of any statute
 retrieved_subspan = (
     "Under statutory company law, corporate legal entities are incorporated by formal public registration. "
     "No statutory provision imposes automatic joint and several personal liability on directors for pre-existing corporate obligations."
@@ -214,9 +217,10 @@ try:
     gen_model = AutoModelForCausalLM.from_pretrained(
         GEN_MODEL_ID,
         dtype=torch.bfloat16 if DEVICE in ["mps", "cuda"] else torch.float32,
-        device_map="auto" if DEVICE == "mps" else None
+        # Pin every module to the accelerator: "auto" may offload to CPU, which bnb 4-bit refuses
+        device_map={"": DEVICE} if DEVICE in ["mps", "cuda"] else None
     )
-    if DEVICE != "mps":
+    if DEVICE == "cpu":
         gen_model = gen_model.to(DEVICE)
     gen_model.eval()
     if DEVICE == "mps":
@@ -370,29 +374,22 @@ print(f"[RESUMED]: \"{resumed_text}\"")
 print(f"  ├─ Sentinel Verdict: {verdict_3} (p={conf_3:.2f}, Latency: {lat_3:.1f}ms)")
 print(f"  └─ KV Cache State:   LOCKED at Sequence Index = {final_kv_len}")
 
-# --- ACT 5: Structured Tamper-Evident Audit Record Generation ---
+# --- Audit record with a SHA-256 digest over its contents ---
+# The digest shows the record is unchanged only if it is stored where the writer can't edit it.
 print("\n" + "="*80)
-print("CRYPTOGRAPHIC AUDIT RECORD (EU AI ACT ARTICLES 14 & 15 / ISO 42001)")
+print("AUDIT RECORD (SHA-256 DIGEST)")
 print("="*80)
 
 audit_payload = {
-    "query_id": "audit-20260907-corp-liability-001",
+    "query_id": "demo-corp-liability-001",
     "timestamp_utc": dt_class.now(timezone.utc).isoformat(),
-    "jurisdiction": "EU / Common Law Corporate Statutory Harmonization",
-    "statutory_corpus": "Statutory Company Law (Director Liability & Limited Liability Formation)",
-    "compliance_frameworks": [
-        "EU AI Act Article 14 (Human Oversight)",
-        "EU AI Act Article 15 (Accuracy & Traceability)",
-        "ISO/IEC 42001:2023 A.6.2.6",
-        "SRA Principles 2 & 7 / Model Rule 1.1"
-    ],
+    "source_note": "Illustrative paraphrase written for this demo; not the text of any statute.",
     "source_subspan_hash": source_subspan_hash,
     "audit_events": audit_events,
     "telemetry": {
         "total_audit_latency_ms": round(sum(total_latencies), 2),
         "tokens_discarded_on_rollback": tokens_discarded,
         "tokens_committed": final_kv_len - prompt_len,
-        "compute_waste_reduction_pct": 95.0,
         "rollback_latency_ms": round(slice_latency_ms, 2)
     }
 }
@@ -403,7 +400,7 @@ audit_payload["audit_hash"] = compute_sha256(canonical_repr)
 formatted_json = json.dumps(audit_payload, indent=2, ensure_ascii=False)
 print(formatted_json)
 print("\n" + "="*80)
-print(f"[+] SEALED DIGEST: {audit_payload['audit_hash']}")
+print(f"[+] DIGEST: {audit_payload['audit_hash']}")
 print("="*80 + "\n")
 
 if DEVICE == "mps":

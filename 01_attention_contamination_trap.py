@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 """
 01_attention_contamination_trap.py
-Demonstrates the Default Industry Architecture (Post-Hoc Verification on Closed APIs).
-Shows how an ungrounded hallucination in Sentence 2 pollutes the KV cache and how
-subsequent tokens physically attend to the bad tokens, incrementing an Attention Hit Counter.
-Proves why downstream legal malpractice is mathematically driven by poisoned attention states.
+Check after generation. Generates one grounded sentence, appends an injected ungrounded
+sentence to the KV cache, then feeds a fixed follow-on sentence one token at a time and
+reports how much attention each token puts on the injected span (mean of the last 4 layers;
+a token counts as a hit above 5%). The NLI check runs once at the end, on the whole response.
+
+The ungrounded sentence and the follow-on text are fixed, not generated, so this measures
+attention on one example; it does not show how often or how far a model builds on an error.
+The source passage is an illustrative paraphrase, not the text of any statute.
 """
 import os
 import sys
@@ -77,7 +81,7 @@ except Exception as e:
     sys.exit(1)
 
 def audit_sentence_nli(premise: str, hypothesis: str):
-    """Evaluates NLI relation in a single bidirectional forward pass (<25ms)."""
+    """Evaluates the NLI relation in a single forward pass and returns (label, prob, latency_ms)."""
     if DEVICE == "mps":
         torch.mps.synchronize()
     t0 = time.perf_counter()
@@ -98,7 +102,7 @@ def audit_sentence_nli(premise: str, hypothesis: str):
 
     return label, probs[idx].item(), latency
 
-# Statutory Ground Truth: Corporate Entity Formation & Director Liability
+# Source passage: an illustrative paraphrase written for this demo, not the text of any statute
 retrieved_subspan = (
     "Under statutory company law, corporate legal entities are incorporated by formal public registration. "
     "No statutory provision imposes automatic joint and several personal liability on directors for pre-existing corporate obligations."
@@ -139,10 +143,11 @@ try:
     gen_model = AutoModelForCausalLM.from_pretrained(
         GEN_MODEL_ID,
         dtype=torch.bfloat16 if DEVICE in ["mps", "cuda"] else torch.float32,
-        device_map="auto" if DEVICE == "mps" else None,
+        # Pin every module to the accelerator: "auto" may offload to CPU, which bnb 4-bit refuses
+        device_map={"": DEVICE} if DEVICE in ["mps", "cuda"] else None,
         attn_implementation="eager"  # Required for output_attentions=True
     )
-    if DEVICE != "mps":
+    if DEVICE == "cpu":
         gen_model = gen_model.to(DEVICE)
     gen_model.eval()
     if DEVICE == "mps":
@@ -225,7 +230,7 @@ print(f"  ├─ Contaminated Token Span: [{bad_span[0]}:{bad_span[1]}]")
 print(f"  └─ Status: UNVERIFIED (In-flight evaluation bypassed in post-hoc architecture)")
 
 # --- STEP 3: Downstream Cascade & Real-Time Attention Hit Tracking ---
-print("\n[STEP 3]: Generating Downstream Output conditioned on Contaminated State...")
+print("\n[STEP 3]: Feeding fixed follow-on text through the contaminated cache...")
 print("-" * 80)
 print(f"{'STEP':<6} | {'TOKEN':<16} | {'ATTN ON BAD SPAN':<18} | {'HEADS FIRING':<14} | {'STATUS'}")
 print("-" * 80)
@@ -238,6 +243,7 @@ current_kv = polluted_kv
 cumulative_attention_hits = 0
 total_downstream_tokens = 0
 attention_masses = []
+heads_firing_counts = []
 
 for idx in range(cascade_ids.shape[1]):
     step_input = cascade_ids[:, idx:idx+1]
@@ -267,6 +273,7 @@ for idx in range(cascade_ids.shape[1]):
         indicator = "CLEAN"
 
     attention_masses.append(mean_span_mass)
+    heads_firing_counts.append(heads_firing)
     total_downstream_tokens += 1
 
     clean_repr = repr(token_str)
@@ -277,12 +284,13 @@ for idx in range(cascade_ids.shape[1]):
 
 print("-" * 80)
 avg_attention = sum(attention_masses) / len(attention_masses) if attention_masses else 0.0
+avg_heads_firing = sum(heads_firing_counts) / len(heads_firing_counts) if heads_firing_counts else 0.0
 
 print(f"\nTELEMETRY SUMMARY (SPAN [{bad_span[0]}:{bad_span[1]}]):")
 print(f"  ├─ Downstream Tokens Analyzed:  {total_downstream_tokens}")
 print(f"  ├─ Contaminated Span Hits:      {cumulative_attention_hits}/{total_downstream_tokens}")
 print(f"  ├─ Mean Span Attention Mass:    {avg_attention:.2f}%")
-print(f"  └─ Query Heads Attending:       {total_heads}/{total_heads}")
+print(f"  └─ Heads Above 5% (mean/token): {avg_heads_firing:.1f}/{total_heads}")
 
 # --- STEP 4: Post-Hoc Evaluation ---
 print("\n" + "="*80)
